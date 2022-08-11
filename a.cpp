@@ -7,6 +7,10 @@ using namespace std;
 #define show(...) true
 #endif
 
+#pragma GCC optimize("O3")
+#pragma GCC optimize("unroll-loops")
+#pragma GCC target("avx2")
+
 using ll = long long;
 #define rep(i, n) for (int i = 0; i < (n); i++)
 template <class T> using V = vector<T>;
@@ -433,16 +437,39 @@ struct Solver {
             iter_count++;
             double now_time = Elapsed();
             if (now_time > time_limit) break;
-
+#if 0
+            double last_time = now_time;
+            double next_time;
+#endif
             // modify move
             auto moves = modify(max_res.move);
+#if 0
+            if (iter_count % 1000 == 0) {
+                next_time = Elapsed();
+                show(next_time - last_time);
+                last_time = next_time;
+            }
+#endif
             // from each computer, connect to right and/or bottom if it will reach the same type
             auto connects = connect((int)moves.size());
+#if 0
+            if (iter_count % 1000 == 0) {
+                next_time = Elapsed();
+                show(next_time - last_time);
+                last_time = next_time;
+            }
+#endif
             Result res = Result(moves, connects);
             field = field_backup;
             // int score = calc_score(N, field, res);
             int score = calc_score_fast(N, field, res, K);
-
+#if 0
+            if (iter_count % 1000 == 0) {
+                next_time = Elapsed();
+                show(next_time - last_time);
+                last_time = next_time;
+            }
+#endif
             // 温度関数
             double temp = start_temp + (end_temp - start_temp) * now_time / time_limit;
             // 遷移確率関数
@@ -451,8 +478,10 @@ struct Solver {
                 // cerr << "iter_count = " << iter_count << '\n';
                 max_score = score;
                 max_res = res;
+#ifdef _RUTHEN
+                // print_answer(res, K);
+#endif
             }
-            // print_answer(res);
         }
         cerr << "iter_count = " << iter_count << '\n';
         return max_res;
