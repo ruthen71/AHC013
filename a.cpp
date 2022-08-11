@@ -119,7 +119,6 @@ struct Solver {
 
     int N, K;
     int action_count_limit;
-    int action_count_limit_backup;
     mt19937 engine;
     vector<string> field;
     vector<string> field_backup;
@@ -127,7 +126,6 @@ struct Solver {
     Solver(int N, int K, const vector<string> &field, int seed = 0) : N(N), K(K), action_count_limit(K * 100), field(field) {
         engine.seed(seed);
         field_backup = field;
-        action_count_limit_backup = action_count_limit;
     }
 
     bool can_move(int row, int col, int dir) const {
@@ -144,7 +142,7 @@ struct Solver {
         if (move_limit == -1) {
             move_limit = K * 50;
         }
-
+        assert(action_count_limit >= move_limit);
         for (int i = 0; i < move_limit; i++) {
             int row = engine() % N;
             int col = engine() % N;
@@ -152,10 +150,8 @@ struct Solver {
             if (field[row][col] != '0' && can_move(row, col, dir)) {
                 swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
                 ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
-                action_count_limit--;
             }
         }
-
         return ret;
     }
 
@@ -189,7 +185,8 @@ struct Solver {
         assert(false);
     }
 
-    vector<ConnectAction> connect() {
+    vector<ConnectAction> connect(int move_count) {
+        int connect_count_limit = action_count_limit - move_count;
         vector<ConnectAction> ret;
         for (int i = 0; i < N; i++) {
             for (int j = 0; j < N; j++) {
@@ -197,8 +194,8 @@ struct Solver {
                     for (int dir = 0; dir < 2; dir++) {
                         if (can_connect(i, j, dir)) {
                             ret.push_back(line_fill(i, j, dir));
-                            action_count_limit--;
-                            if (action_count_limit <= 0) {
+                            connect_count_limit--;
+                            if (connect_count_limit <= 0) {
                                 return ret;
                             }
                         }
@@ -209,7 +206,7 @@ struct Solver {
         return ret;
     }
 
-    Result solve() {
+    Result solve_random() {
         int max_score = 0;
         Result max_res;
         while (true) {
@@ -217,10 +214,9 @@ struct Solver {
                 // create random moves
                 auto moves = move();
                 // from each computer, connect to right and/or bottom if it will reach the same type
-                auto connects = connect();
+                auto connects = connect((int)moves.size());
                 Result res = Result(moves, connects);
                 field = field_backup;
-                action_count_limit = action_count_limit_backup;
                 int score = calc_score(N, field, res);
                 if (score > max_score) {
                     max_score = score;
@@ -247,7 +243,8 @@ int main() {
     }
 
     Solver s(N, K, field);
-    auto ret = s.solve();
+    auto ret = s.solve_random();
+    // auto ret = s.solve_mountain();
 
     cerr << "Score = " << calc_score(N, field, ret) << endl;
 
