@@ -139,13 +139,13 @@ int calc_score_fast(int N, vector<string> field, const Result &res, const int K)
 }
 
 void print_answer(const Result &res) {
-    cout << res.move.size() << endl;
+    cout << res.move.size() << '\n';
     for (auto m : res.move) {
-        cout << m.before_row << " " << m.before_col << " " << m.after_row << " " << m.after_col << endl;
+        cout << m.before_row << " " << m.before_col << " " << m.after_row << " " << m.after_col << '\n';
     }
-    cout << res.connect.size() << endl;
+    cout << res.connect.size() << '\n';
     for (auto m : res.connect) {
-        cout << m.c1_row << " " << m.c1_col << " " << m.c2_row << " " << m.c2_col << endl;
+        cout << m.c1_row << " " << m.c1_col << " " << m.c2_row << " " << m.c2_col << '\n';
     }
 }
 
@@ -358,7 +358,7 @@ struct Solver {
                     max_res = res;
                 }
 #ifdef _RUTHEN
-                print_answer(res);
+                // print_answer(res);
 #endif
             } else {
                 break;
@@ -382,7 +382,7 @@ int main() {
     // auto ret = s.solve_random();
     auto ret = s.solve_mountain();
 
-    cerr << "Score = " << calc_score(N, field, ret) << endl;
+    cerr << "Score = " << calc_score(N, field, ret) << '\n';
 
     print_answer(ret);
 
