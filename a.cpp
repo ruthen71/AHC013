@@ -11,6 +11,12 @@ using ll = long long;
 #define rep(i, n) for (int i = 0; i < (n); i++)
 template <class T> using V = vector<T>;
 
+#ifdef _RUTHEN
+double time_limit = 300;
+#else
+double time_limit = 2.8;
+#endif
+
 // https://atcoder.jp/contests/ahc011/submissions/32267675
 inline ll GetTSC() {
     ll lo, hi;
@@ -154,6 +160,62 @@ struct Solver {
         }
         return ret;
     }
+    vector<MoveAction> modify(vector<MoveAction> &pre_moves) {
+        int move_limit = (int)pre_moves.size();
+        int change = engine() % move_limit;
+        vector<MoveAction> ret;
+        for (int i = 0; i < move_limit; i++) {
+            if (i == change) {
+                // change
+                // 高速化の余地がある
+                while (true) {
+                    int row = engine() % N;
+                    int col = engine() % N;
+                    int dir = engine() % 4;
+                    if (field[row][col] != '0' && can_move(row, col, dir)) {
+                        swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
+                        ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
+                        break;
+                    }
+                }
+            } else {
+                auto [row, col, nrow, ncol] = pre_moves[i];
+                int dir = -1;
+                rep(k, 4) {
+                    if (row + DR[k] == nrow and col + DC[k] == ncol) {
+                        dir = k;
+                        break;
+                    }
+                }
+                if (field[row][col] != '0' && can_move(row, col, dir)) {
+                    swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
+                    ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
+                } else {
+                    while (true) {
+                        int row = engine() % N;
+                        int col = engine() % N;
+                        int dir = engine() % 4;
+                        if (field[row][col] != '0' && can_move(row, col, dir)) {
+                            swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
+                            ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        int additional_move_limit = K;
+        for (int i = 0; i < additional_move_limit; i++) {
+            int row = engine() % N;
+            int col = engine() % N;
+            int dir = engine() % 4;
+            if (field[row][col] != '0' && can_move(row, col, dir)) {
+                swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
+                ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
+            }
+        }
+        return ret;
+    }
 
     bool can_connect(int row, int col, int dir) const {
         int nrow = row + DR[dir];
@@ -209,8 +271,10 @@ struct Solver {
     Result solve_random() {
         int max_score = 0;
         Result max_res;
+        int iter_count = 0;
         while (true) {
-            if (Elapsed() <= 2.8) {
+            iter_count++;
+            if (Elapsed() <= time_limit) {
                 // create random moves
                 auto moves = move();
                 // from each computer, connect to right and/or bottom if it will reach the same type
@@ -229,6 +293,43 @@ struct Solver {
                 break;
             }
         }
+        cerr << "iter_count = " << iter_count << '\n';
+        return max_res;
+    }
+
+    Result solve_mountain() {
+        int max_score = 0;
+        Result max_res;
+        // initialize
+        {
+            auto moves = move();
+            auto connects = connect((int)moves.size());
+            max_res = Result(moves, connects);
+            field = field_backup;
+        }
+        int iter_count = 1;
+        while (true) {
+            iter_count++;
+            if (Elapsed() <= time_limit) {
+                // modify move
+                auto moves = modify(max_res.move);
+                // from each computer, connect to right and/or bottom if it will reach the same type
+                auto connects = connect((int)moves.size());
+                Result res = Result(moves, connects);
+                field = field_backup;
+                int score = calc_score(N, field, res);
+                if (score > max_score) {
+                    max_score = score;
+                    max_res = res;
+                }
+#ifdef _RUTHEN
+                print_answer(res);
+#endif
+            } else {
+                break;
+            }
+        }
+        cerr << "iter_count = " << iter_count << '\n';
         return max_res;
     }
 };
@@ -243,8 +344,8 @@ int main() {
     }
 
     Solver s(N, K, field);
-    auto ret = s.solve_random();
-    // auto ret = s.solve_mountain();
+    // auto ret = s.solve_random();
+    auto ret = s.solve_mountain();
 
     cerr << "Score = " << calc_score(N, field, ret) << endl;
 
