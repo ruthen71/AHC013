@@ -11,6 +11,8 @@ using ll = long long;
 #define rep(i, n) for (int i = 0; i < (n); i++)
 template <class T> using V = vector<T>;
 
+#include <atcoder/dsu>
+
 #ifdef _RUTHEN
 double time_limit = 300;
 #else
@@ -104,6 +106,35 @@ int calc_score(int N, vector<string> field, const Result &res) {
         }
     }
 
+    return max(score, 0);
+}
+
+int calc_score_fast(int N, vector<string> field, const Result &res, const int K) {
+    for (auto r : res.move) {
+        assert(field[r.before_row][r.before_col] != '0');
+        assert(field[r.after_row][r.after_col] == '0');
+        swap(field[r.before_row][r.before_col], field[r.after_row][r.after_col]);
+    }
+
+    vector<int> srvcnt(K, 0);
+    vector<vector<int>> srvloc(N, vector<int>(N));
+    rep(i, N) {
+        rep(j, N) {
+            if (field[i][j] != '0') {
+                int srvtype = field[i][j] - '1';
+                srvloc[i][j] = srvtype * 100 + srvcnt[srvtype];
+                srvcnt[srvtype]++;
+            }
+        }
+    }
+    atcoder::dsu uf(100 * K);
+    for (auto r : res.connect) {
+        uf.merge(srvloc[r.c1_row][r.c1_col], srvloc[r.c2_row][r.c2_col]);
+    }
+    int score = 0;
+    rep(i, 100 * K) {
+        if (uf.leader(i) == i) score += uf.size(i) * (uf.size(i) - 1) / 2;
+    }
     return max(score, 0);
 }
 
@@ -306,6 +337,8 @@ struct Solver {
             auto connects = connect((int)moves.size());
             max_res = Result(moves, connects);
             field = field_backup;
+            max_score = calc_score_fast(N, field, max_res, K);
+            field = field_backup;
         }
         int iter_count = 1;
         while (true) {
@@ -317,8 +350,10 @@ struct Solver {
                 auto connects = connect((int)moves.size());
                 Result res = Result(moves, connects);
                 field = field_backup;
-                int score = calc_score(N, field, res);
+                // int score = calc_score(N, field, res);
+                int score = calc_score_fast(N, field, res, K);
                 if (score > max_score) {
+                    cerr << "iter_count = " << iter_count << '\n';
                     max_score = score;
                     max_res = res;
                 }
