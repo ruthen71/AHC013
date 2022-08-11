@@ -11,6 +11,18 @@ using ll = long long;
 #define rep(i, n) for (int i = 0; i < (n); i++)
 template <class T> using V = vector<T>;
 
+// https://atcoder.jp/contests/ahc011/submissions/32267675
+inline ll GetTSC() {
+    ll lo, hi;
+    asm volatile("rdtsc" : "=a"(lo), "=d"(hi));
+    return lo + (hi << 32);
+}
+inline double GetSeconds() { return GetTSC() / 2.8e9; }
+
+double saveTime;
+void Init() { saveTime = GetSeconds(); }
+double Elapsed() { return GetSeconds() - saveTime; }
+
 struct MoveAction {
     int before_row, before_col, after_row, after_col;
     MoveAction(int before_row, int before_col, int after_row, int after_col) : before_row(before_row), before_col(before_col), after_row(after_row), after_col(after_col) {}
@@ -24,8 +36,81 @@ struct ConnectAction {
 struct Result {
     vector<MoveAction> move;
     vector<ConnectAction> connect;
+    Result() {}
     Result(const vector<MoveAction> &move, const vector<ConnectAction> &con) : move(move), connect(con) {}
 };
+
+struct UnionFind {
+    map<pair<int, int>, pair<int, int>> parent;
+    UnionFind() : parent() {}
+
+    pair<int, int> find(pair<int, int> x) {
+        if (parent.find(x) == parent.end()) {
+            parent[x] = x;
+            return x;
+        } else if (parent[x] == x) {
+            return x;
+        } else {
+            parent[x] = find(parent[x]);
+            return parent[x];
+        }
+    }
+
+    void unite(pair<int, int> x, pair<int, int> y) {
+        x = find(x);
+        y = find(y);
+        if (x != y) {
+            parent[x] = y;
+        }
+    }
+};
+
+int calc_score(int N, vector<string> field, const Result &res) {
+    for (auto r : res.move) {
+        assert(field[r.before_row][r.before_col] != '0');
+        assert(field[r.after_row][r.after_col] == '0');
+        swap(field[r.before_row][r.before_col], field[r.after_row][r.after_col]);
+    }
+
+    UnionFind uf;
+    for (auto r : res.connect) {
+        pair<int, int> p1(r.c1_row, r.c1_col), p2(r.c2_row, r.c2_col);
+        uf.unite(p1, p2);
+    }
+
+    vector<pair<int, int>> computers;
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            if (field[i][j] != '0') {
+                computers.emplace_back(i, j);
+            }
+        }
+    }
+
+    int score = 0;
+    for (int i = 0; i < (int)computers.size(); i++) {
+        for (int j = i + 1; j < (int)computers.size(); j++) {
+            auto c1 = computers[i];
+            auto c2 = computers[j];
+            if (uf.find(c1) == uf.find(c2)) {
+                score += (field[c1.first][c1.second] == field[c2.first][c2.second]) ? 1 : -1;
+            }
+        }
+    }
+
+    return max(score, 0);
+}
+
+void print_answer(const Result &res) {
+    cout << res.move.size() << endl;
+    for (auto m : res.move) {
+        cout << m.before_row << " " << m.before_col << " " << m.after_row << " " << m.after_col << endl;
+    }
+    cout << res.connect.size() << endl;
+    for (auto m : res.connect) {
+        cout << m.c1_row << " " << m.c1_col << " " << m.c2_row << " " << m.c2_col << endl;
+    }
+}
 
 struct Solver {
     static constexpr char USED = 'x';
@@ -34,10 +119,16 @@ struct Solver {
 
     int N, K;
     int action_count_limit;
+    int action_count_limit_backup;
     mt19937 engine;
     vector<string> field;
+    vector<string> field_backup;
 
-    Solver(int N, int K, const vector<string> &field, int seed = 0) : N(N), K(K), action_count_limit(K * 100), field(field) { engine.seed(seed); }
+    Solver(int N, int K, const vector<string> &field, int seed = 0) : N(N), K(K), action_count_limit(K * 100), field(field) {
+        engine.seed(seed);
+        field_backup = field;
+        action_count_limit_backup = action_count_limit;
+    }
 
     bool can_move(int row, int col, int dir) const {
         int nrow = row + DR[dir];
@@ -119,87 +210,35 @@ struct Solver {
     }
 
     Result solve() {
-        // create random moves
-        auto moves = move();
-        // from each computer, connect to right and/or bottom if it will reach the same type
-        auto connects = connect();
-        return Result(moves, connects);
-    }
-};
-
-struct UnionFind {
-    map<pair<int, int>, pair<int, int>> parent;
-    UnionFind() : parent() {}
-
-    pair<int, int> find(pair<int, int> x) {
-        if (parent.find(x) == parent.end()) {
-            parent[x] = x;
-            return x;
-        } else if (parent[x] == x) {
-            return x;
-        } else {
-            parent[x] = find(parent[x]);
-            return parent[x];
-        }
-    }
-
-    void unite(pair<int, int> x, pair<int, int> y) {
-        x = find(x);
-        y = find(y);
-        if (x != y) {
-            parent[x] = y;
-        }
-    }
-};
-
-int calc_score(int N, vector<string> field, const Result &res) {
-    for (auto r : res.move) {
-        assert(field[r.before_row][r.before_col] != '0');
-        assert(field[r.after_row][r.after_col] == '0');
-        swap(field[r.before_row][r.before_col], field[r.after_row][r.after_col]);
-    }
-
-    UnionFind uf;
-    for (auto r : res.connect) {
-        pair<int, int> p1(r.c1_row, r.c1_col), p2(r.c2_row, r.c2_col);
-        uf.unite(p1, p2);
-    }
-
-    vector<pair<int, int>> computers;
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < N; j++) {
-            if (field[i][j] != '0') {
-                computers.emplace_back(i, j);
+        int max_score = 0;
+        Result max_res;
+        while (true) {
+            if (Elapsed() <= 2.8) {
+                // create random moves
+                auto moves = move();
+                // from each computer, connect to right and/or bottom if it will reach the same type
+                auto connects = connect();
+                Result res = Result(moves, connects);
+                field = field_backup;
+                action_count_limit = action_count_limit_backup;
+                int score = calc_score(N, field, res);
+                if (score > max_score) {
+                    max_score = score;
+                    max_res = res;
+                }
+#ifdef _RUTHEN
+                print_answer(res);
+#endif
+            } else {
+                break;
             }
         }
+        return max_res;
     }
-
-    int score = 0;
-    for (int i = 0; i < (int)computers.size(); i++) {
-        for (int j = i + 1; j < (int)computers.size(); j++) {
-            auto c1 = computers[i];
-            auto c2 = computers[j];
-            if (uf.find(c1) == uf.find(c2)) {
-                score += (field[c1.first][c1.second] == field[c2.first][c2.second]) ? 1 : -1;
-            }
-        }
-    }
-
-    return max(score, 0);
-}
-
-void print_answer(const Result &res) {
-    cout << res.move.size() << endl;
-    for (auto m : res.move) {
-        cout << m.before_row << " " << m.before_col << " " << m.after_row << " " << m.after_col << endl;
-    }
-    cout << res.connect.size() << endl;
-    for (auto m : res.connect) {
-        cout << m.c1_row << " " << m.c1_col << " " << m.c2_row << " " << m.c2_col << endl;
-    }
-}
+};
 
 int main() {
+    Init();
     int N, K;
     cin >> N >> K;
     vector<string> field(N);
