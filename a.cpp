@@ -14,12 +14,13 @@ template <class T> using V = vector<T>;
 #include <atcoder/dsu>
 
 #ifdef _RUTHEN
-double time_limit = 300;
+double time_limit = 60;
 #else
 double time_limit = 2.8;
 #endif
 
 // https://atcoder.jp/contests/ahc011/submissions/32267675
+// Timer
 inline ll GetTSC() {
     ll lo, hi;
     asm volatile("rdtsc" : "=a"(lo), "=d"(hi));
@@ -30,6 +31,44 @@ inline double GetSeconds() { return GetTSC() / 2.8e9; }
 double saveTime;
 void Init() { saveTime = GetSeconds(); }
 double Elapsed() { return GetSeconds() - saveTime; }
+
+// Random
+const int MAX_RAND = 1 << 30;
+struct Rand {
+    ll x, y, z, w, o;
+    Rand() {}
+    Rand(ll seed) {
+        reseed(seed);
+        o = 0;
+    }
+    inline void reseed(ll seed) {
+        x = 0x498b3bc5 ^ seed;
+        y = 0;
+        z = 0;
+        w = 0;
+        rep(i, 20) mix();
+    }
+    inline void mix() {
+        ll t = x ^ (x << 11);
+        x = y;
+        y = z;
+        z = w;
+        w = w ^ (w >> 19) ^ t ^ (t >> 8);
+    }
+    inline ll rand() {
+        mix();
+        return x & (MAX_RAND - 1);
+    }
+    inline int nextInt(int n) { return rand() % n; }
+    inline int nextInt(int L, int R) { return rand() % (R - L + 1) + L; }
+    inline int nextBool() {
+        if (o < 4) o = rand();
+        o >>= 2;
+        return o & 1;
+    }
+    double nextDouble() { return rand() * 1.0 / MAX_RAND; }
+};
+Rand my(2022);
 
 struct MoveAction {
     int before_row, before_col, after_row, after_col;
@@ -138,7 +177,8 @@ int calc_score_fast(int N, vector<string> field, const Result &res, const int K)
     return max(score, 0);
 }
 
-void print_answer(const Result &res) {
+void print_answer(const Result &res, const int K) {
+    assert(res.move.size() + res.connect.size() <= 100 * K);
     cout << res.move.size() << '\n';
     for (auto m : res.move) {
         cout << m.before_row << " " << m.before_col << " " << m.after_row << " " << m.after_col << '\n';
@@ -191,12 +231,16 @@ struct Solver {
         }
         return ret;
     }
+
     vector<MoveAction> modify(vector<MoveAction> &pre_moves) {
         int move_limit = (int)pre_moves.size();
+        assert(move_limit <= 100 * K);
         int change = engine() % move_limit;
         vector<MoveAction> ret;
+        double prob = my.nextDouble();  // 0.5 以上ならmove 数を減らす 0.5未満ならmove数を増やす
         for (int i = 0; i < move_limit; i++) {
             if (i == change) {
+                if (prob > 0.5 and move_limit > 1) continue;
                 // change
                 // 高速化の余地がある
                 while (true) {
@@ -235,16 +279,19 @@ struct Solver {
                 }
             }
         }
-        int additional_move_limit = K;
-        for (int i = 0; i < additional_move_limit; i++) {
-            int row = engine() % N;
-            int col = engine() % N;
-            int dir = engine() % 4;
-            if (field[row][col] != '0' && can_move(row, col, dir)) {
-                swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
-                ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
+        if (prob <= 0.5 and (int) ret.size() < 100 * K) {
+            while (true) {
+                int row = engine() % N;
+                int col = engine() % N;
+                int dir = engine() % 4;
+                if (field[row][col] != '0' && can_move(row, col, dir)) {
+                    swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
+                    ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
+                    break;
+                }
             }
         }
+        assert(abs((int)ret.size() - move_limit) <= 1);
         return ret;
     }
 
@@ -318,7 +365,7 @@ struct Solver {
                     max_res = res;
                 }
 #ifdef _RUTHEN
-                print_answer(res);
+                print_answer(res, K);
 #endif
             } else {
                 break;
@@ -353,7 +400,7 @@ struct Solver {
                 // int score = calc_score(N, field, res);
                 int score = calc_score_fast(N, field, res, K);
                 if (score > max_score) {
-                    cerr << "iter_count = " << iter_count << '\n';
+                    // cerr << "iter_count = " << iter_count << '\n';
                     max_score = score;
                     max_res = res;
                 }
@@ -363,6 +410,49 @@ struct Solver {
             } else {
                 break;
             }
+        }
+        cerr << "iter_count = " << iter_count << '\n';
+        return max_res;
+    }
+
+    Result solve_sa() {
+        // initialize
+        int max_score = 0;
+        Result max_res;
+        {
+            auto moves = move();
+            auto connects = connect((int)moves.size());
+            max_res = Result(moves, connects);
+            field = field_backup;
+            max_score = calc_score_fast(N, field, max_res, K);
+            field = field_backup;
+        }
+        double start_temp = 1, end_temp = 0;
+        int iter_count = 1;
+        while (true) {
+            iter_count++;
+            double now_time = Elapsed();
+            if (now_time > time_limit) break;
+
+            // modify move
+            auto moves = modify(max_res.move);
+            // from each computer, connect to right and/or bottom if it will reach the same type
+            auto connects = connect((int)moves.size());
+            Result res = Result(moves, connects);
+            field = field_backup;
+            // int score = calc_score(N, field, res);
+            int score = calc_score_fast(N, field, res, K);
+
+            // 温度関数
+            double temp = start_temp + (end_temp - start_temp) * now_time / time_limit;
+            // 遷移確率関数
+            double prob = exp((score - max_score) / temp);
+            if (prob > my.nextDouble()) {
+                // cerr << "iter_count = " << iter_count << '\n';
+                max_score = score;
+                max_res = res;
+            }
+            // print_answer(res);
         }
         cerr << "iter_count = " << iter_count << '\n';
         return max_res;
@@ -380,11 +470,11 @@ int main() {
 
     Solver s(N, K, field);
     // auto ret = s.solve_random();
-    auto ret = s.solve_mountain();
+    // auto ret = s.solve_mountain();
+    auto ret = s.solve_sa();
 
-    cerr << "Score = " << calc_score(N, field, ret) << '\n';
+    cerr << "Score = " << calc_score_fast(N, field, ret, K) << '\n';
 
-    print_answer(ret);
-
+    print_answer(ret, K);
     return 0;
 }
