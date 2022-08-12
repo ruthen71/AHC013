@@ -195,8 +195,10 @@ void print_answer(const Result &res, const int K) {
 
 struct Solver {
     static constexpr char USED = 'x';
-    static constexpr int DR[4] = {0, 1, 0, -1};
-    static constexpr int DC[4] = {1, 0, -1, 0};
+    // static constexpr int DR[4] = {0, 1, 0, -1};
+    // static constexpr int DC[4] = {1, 0, -1, 0};
+    static constexpr int DR[4] = {1, 0, -1, 0};
+    static constexpr int DC[4] = {0, 1, 0, -1};
 
     int N, K;
     int action_count_limit;
@@ -350,6 +352,50 @@ struct Solver {
         return ret;
     }
 
+    vector<ConnectAction> connect_bfs(int move_count) {
+        int connect_count_limit = action_count_limit - move_count;
+        vector<ConnectAction> ret;
+        vector<vector<int>> seen(N, vector<int>(N, 0));
+        vector<vector<int>> used(N, vector<int>(N, 0));
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+                if (seen[i][j]) continue;
+                if (field[i][j] != '0' && field[i][j] != 'x') {
+                    // field[i][j] から幅優先探索で繋げるだけ繋ぐ
+                    // 同じつなげ方を2回以上しないように気を付ける
+                    queue<int> que;
+                    que.push(i * N + j);
+                    seen[i][j] = 1;
+                    while (!que.empty()) {
+                        int cur = que.front();
+                        que.pop();
+                        int cx = cur / N, cy = cur % N;
+                        for (int dir = 0; dir < 4; dir++) {
+                            if (used[cx][cy] >> dir & 1) continue;
+                            if (can_connect(cx, cy, dir)) {
+                                auto res = line_fill(cx, cy, dir);
+                                auto [x1, y1, x2, y2] = res;
+                                ret.push_back(res);
+                                connect_count_limit--;
+                                if (connect_count_limit <= 0) {
+                                    return ret;
+                                }
+                                // (dir+2)%4
+                                // (x2,y2)からみて(dir+2)%4方向はつながったことになるのでもう見ない
+                                used[x2][y2] |= (1 << ((dir + 2) & 3));
+                                if (seen[x2][y2] == 0) {
+                                    seen[x2][y2] = 1;
+                                    que.push(x2 * N + y2);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return ret;
+    }
+
     Result solve_random() {
         int max_score = 0;
         Result max_res;
@@ -425,13 +471,13 @@ struct Solver {
         Result max_res;
         {
             auto moves = move();
-            auto connects = connect((int)moves.size());
+            auto connects = connect_bfs((int)moves.size());
             max_res = Result(moves, connects);
             field = field_backup;
             max_score = calc_score_fast(N, field, max_res, K);
             field = field_backup;
         }
-        double start_temp = 1, end_temp = 0;
+        double start_temp = 0, end_temp = 0;
         int iter_count = 1;
         while (true) {
             iter_count++;
@@ -451,7 +497,7 @@ struct Solver {
             }
 #endif
             // from each computer, connect to right and/or bottom if it will reach the same type
-            auto connects = connect((int)moves.size());
+            auto connects = connect_bfs((int)moves.size());
 #if 0
             if (iter_count % 1000 == 0) {
                 next_time = Elapsed();
