@@ -523,6 +523,58 @@ struct Solver {
         return ret;
     }
 
+    vector<ConnectAction> connect_bfs_fast(int move_count) {
+        int connect_count_limit = action_count_limit - move_count;
+        vector<ConnectAction> ret;
+        vector<vector<int>> used(N, vector<int>(N, 0));
+
+        V<int> kind_vec(K);
+        iota(kind_vec.begin(), kind_vec.end(), 0);
+        std::shuffle(kind_vec.begin(), kind_vec.end(), engine);
+        V<int> ind_vec(N);
+        iota(ind_vec.begin(), ind_vec.end(), 0);
+        std::shuffle(ind_vec.begin(), ind_vec.end(), engine);
+
+        for (auto kind : kind_vec) {
+            for (auto ind : ind_vec) {
+                int i = servloc[kind][ind] >> 6;
+                int j = servloc[kind][ind] & 63;
+                if (used[i][j] >> 5 & 1) continue;
+                assert(field[i][j] != '0' and field[i][j] != 'x');
+                // field[i][j] から幅優先探索で繋げるだけ繋ぐ
+                // 同じつなげ方を2回以上しないように気を付ける
+                queue<int> que;
+                que.push((i << 6) | j);
+                used[i][j] |= 1 << 5;
+                while (!que.empty()) {
+                    int cur = que.front();
+                    que.pop();
+                    int cx = cur >> 6, cy = cur & 63;
+                    for (int dir = 0; dir < 4; dir++) {
+                        if (used[cx][cy] >> dir & 1) continue;
+                        if (can_connect(cx, cy, dir)) {
+                            auto res = line_fill(cx, cy, dir);
+                            auto [x1, y1, x2, y2] = res;
+                            ret.push_back(res);
+                            connect_count_limit--;
+                            if (connect_count_limit <= 0) {
+                                return ret;
+                            }
+                            // (dir+2)%4
+                            // (x2,y2)からみて(dir+2)%4方向はつながったことになるのでもう見ない
+                            used[x2][y2] |= (1 << ((dir + 2) & 3));
+                            if ((used[x2][y2] >> 5 & 1) == 0) {
+                                used[x2][y2] |= 1 << 5;
+                                que.push((x2 << 6) | y2);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return ret;
+    }
+
     Result solve_random() {
         int max_score = 0;
         Result max_res;
@@ -598,7 +650,7 @@ struct Solver {
         Result max_res;
         {
             auto moves = move_fast();
-            auto connects = connect_bfs((int)moves.size());
+            auto connects = connect_bfs_fast((int)moves.size());
             max_res = Result(moves, connects);
             field = field_backup;
             servloc = servloc_backup;
@@ -625,7 +677,7 @@ struct Solver {
             }
 #endif
             // from each computer, connect to right and/or bottom if it will reach the same type
-            auto connects = connect_bfs((int)moves.size());
+            auto connects = connect_bfs_fast((int)moves.size());
 #if 0
             if (iter_count % 1000 == 0) {
                 next_time = Elapsed();
