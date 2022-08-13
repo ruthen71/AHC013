@@ -205,10 +205,32 @@ struct Solver {
     mt19937 engine;
     vector<string> field;
     vector<string> field_backup;
+    vector<vector<int>> servloc;
+    vector<vector<int>> servloc_backup;
+    vector<vector<int>> servid;
+    vector<vector<int>> servid_backup;
 
     Solver(int N, int K, const vector<string> &field, int seed = 0) : N(N), K(K), action_count_limit(K * 100), field(field) {
         engine.seed(seed);
         field_backup = field;
+        servloc.resize(K);
+        rep(i, K) servloc[i].resize(100);
+        servid.resize(N);
+        rep(i, N) servid[i].resize(N);
+        vector<int> servcnt(K, 0);
+        rep(i, N) {
+            rep(j, N) {
+                // 15 <= N <= 48 なので
+                rep(k, K) if (field[i][j] == '1' + k) {
+                    servloc[k][servcnt[k]] = (i << 6) | j;
+                    servid[i][j] = k * 100 + servcnt[k];
+                    servcnt[k]++;
+                }
+            }
+        }
+        servloc_backup = servloc;
+        servid_backup = servid;
+        rep(k, K) assert(servcnt[k] == 100);
     }
 
     bool can_move(int row, int col, int dir) const {
@@ -227,9 +249,9 @@ struct Solver {
         }
         assert(action_count_limit >= move_limit);
         for (int i = 0; i < move_limit; i++) {
-            int row = engine() % N;
-            int col = engine() % N;
-            int dir = engine() % 4;
+            int row = my.nextInt(N);
+            int col = my.nextInt(N);
+            int dir = my.nextInt(4);
             if (field[row][col] != '0' && can_move(row, col, dir)) {
                 swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
                 ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
@@ -238,10 +260,34 @@ struct Solver {
         return ret;
     }
 
+    vector<MoveAction> move_fast(int move_limit = -1) {
+        // 初期解では必ずmoveをmove_limit回行うものになっている
+        vector<MoveAction> ret;
+        if (move_limit == -1) {
+            move_limit = K * 50;
+        }
+        assert(action_count_limit >= move_limit);
+        for (int i = 0; i < move_limit; i++) {
+            int r = my.nextInt(K * 100);
+            int kind = r / 100, ind = r % 100;
+            int row = servloc[kind][ind] >> 6;
+            int col = servloc[kind][ind] & 63;
+            int dir = my.nextInt(4);
+            assert(field[row][col] != '0');
+            if (can_move(row, col, dir)) {
+                swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
+                ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
+                servloc[kind][ind] = ((row + DR[dir]) << 6) | (col + DC[dir]);
+                servid[row + DR[dir]][col + DC[dir]] = r;
+            }
+        }
+        return ret;
+    }
+
     vector<MoveAction> modify(vector<MoveAction> &pre_moves) {
         int move_limit = (int)pre_moves.size();
         assert(move_limit <= 100 * K);
-        int change = engine() % move_limit;
+        int change = my.nextInt(move_limit);
         vector<MoveAction> ret;
         double prob = my.nextDouble();  // 0.5 以上ならmove 数を減らす 0.5未満ならmove数を増やす
         for (int i = 0; i < move_limit; i++) {
@@ -250,9 +296,9 @@ struct Solver {
                 // change
                 // 高速化の余地がある
                 while (true) {
-                    int row = engine() % N;
-                    int col = engine() % N;
-                    int dir = engine() % 4;
+                    int row = my.nextInt(N);
+                    int col = my.nextInt(N);
+                    int dir = my.nextInt(4);
                     if (field[row][col] != '0' && can_move(row, col, dir)) {
                         swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
                         ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
@@ -273,9 +319,9 @@ struct Solver {
                     ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
                 } else {
                     while (true) {
-                        int row = engine() % N;
-                        int col = engine() % N;
-                        int dir = engine() % 4;
+                        int row = my.nextInt(N);
+                        int col = my.nextInt(N);
+                        int dir = my.nextInt(4);
                         if (field[row][col] != '0' && can_move(row, col, dir)) {
                             swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
                             ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
@@ -287,12 +333,94 @@ struct Solver {
         }
         if (prob <= 0.5 and (int) ret.size() < 100 * K) {
             while (true) {
-                int row = engine() % N;
-                int col = engine() % N;
-                int dir = engine() % 4;
+                int row = my.nextInt(N);
+                int col = my.nextInt(N);
+                int dir = my.nextInt(4);
                 if (field[row][col] != '0' && can_move(row, col, dir)) {
                     swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
                     ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
+                    break;
+                }
+            }
+        }
+        assert(abs((int)ret.size() - move_limit) <= 1);
+        return ret;
+    }
+
+    vector<MoveAction> modify_fast(vector<MoveAction> &pre_moves) {
+        int move_limit = (int)pre_moves.size();
+        assert(move_limit <= 100 * K);
+        int change = my.nextInt(move_limit);
+        vector<MoveAction> ret;
+        double prob = my.nextDouble();  // 0.5 以上ならmove 数を減らす 0.5未満ならmove数を増やす
+        for (int i = 0; i < move_limit; i++) {
+            if (i == change) {
+                if (prob > 0.5 and move_limit > 1) continue;
+                // change
+                // 高速化の余地がある
+                while (true) {
+                    int r = my.nextInt(K * 100);
+                    int kind = r / 100, ind = r % 100;
+                    int row = servloc[kind][ind] >> 6;
+                    int col = servloc[kind][ind] & 63;
+                    int dir = my.nextInt(4);
+                    assert(field[row][col] != '0');
+                    if (can_move(row, col, dir)) {
+                        swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
+                        ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
+                        servloc[kind][ind] = ((row + DR[dir]) << 6) | (col + DC[dir]);
+                        servid[row + DR[dir]][col + DC[dir]] = r;
+                        break;
+                    }
+                }
+            } else {
+                auto [row, col, nrow, ncol] = pre_moves[i];
+                int dir = -1;
+                rep(k, 4) {
+                    if (row + DR[k] == nrow and col + DC[k] == ncol) {
+                        dir = k;
+                        break;
+                    }
+                }
+                int r = servid[row][col];
+                int kind = r / 100, ind = r % 100;
+                if (field[row][col] != '0' && can_move(row, col, dir)) {
+                    swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
+                    ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
+                    servloc[kind][ind] = ((row + DR[dir]) << 6) | (col + DC[dir]);
+                    servid[row + DR[dir]][col + DC[dir]] = r;
+                    continue;
+                }
+                while (true) {
+                    r = my.nextInt(K * 100);
+                    kind = r / 100, ind = r % 100;
+                    row = servloc[kind][ind] >> 6;
+                    col = servloc[kind][ind] & 63;
+                    dir = my.nextInt(4);
+                    assert(field[row][col] != '0');
+                    if (can_move(row, col, dir)) {
+                        swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
+                        ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
+                        servloc[kind][ind] = ((row + DR[dir]) << 6) | (col + DC[dir]);
+                        servid[row + DR[dir]][col + DC[dir]] = r;
+                        break;
+                    }
+                }
+            }
+        }
+        if (prob <= 0.5 and (int) ret.size() < 100 * K) {
+            while (true) {
+                int r = my.nextInt(K * 100);
+                int kind = r / 100, ind = r % 100;
+                int row = servloc[kind][ind] >> 6;
+                int col = servloc[kind][ind] & 63;
+                int dir = my.nextInt(4);
+                assert(field[row][col] != '0');
+                if (can_move(row, col, dir)) {
+                    swap(field[row][col], field[row + DR[dir]][col + DC[dir]]);
+                    ret.emplace_back(row, col, row + DR[dir], col + DC[dir]);
+                    servloc[kind][ind] = ((row + DR[dir]) << 6) | (col + DC[dir]);
+                    servid[row + DR[dir]][col + DC[dir]] = r;
                     break;
                 }
             }
@@ -470,12 +598,13 @@ struct Solver {
         int max_score = 0;
         Result max_res;
         {
-            auto moves = move();
+            auto moves = move_fast();
             auto connects = connect_bfs((int)moves.size());
             max_res = Result(moves, connects);
             field = field_backup;
+            servloc = servloc_backup;
+            servid = servid_backup;
             max_score = calc_score_fast(N, field, max_res, K);
-            field = field_backup;
         }
         double start_temp = 0, end_temp = 0;
         int iter_count = 1;
@@ -488,7 +617,7 @@ struct Solver {
             double next_time;
 #endif
             // modify move
-            auto moves = modify(max_res.move);
+            auto moves = modify_fast(max_res.move);
 #if 0
             if (iter_count % 1000 == 0) {
                 next_time = Elapsed();
@@ -507,6 +636,8 @@ struct Solver {
 #endif
             Result res = Result(moves, connects);
             field = field_backup;
+            servloc = servloc_backup;
+            servid = servid_backup;
             // int score = calc_score(N, field, res);
             int score = calc_score_fast(N, field, res, K);
 #if 0
@@ -535,6 +666,8 @@ struct Solver {
 };
 
 int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(0);
     Init();
     int N, K;
     cin >> N >> K;
