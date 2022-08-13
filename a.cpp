@@ -483,21 +483,20 @@ struct Solver {
     vector<ConnectAction> connect_bfs(int move_count) {
         int connect_count_limit = action_count_limit - move_count;
         vector<ConnectAction> ret;
-        vector<vector<int>> seen(N, vector<int>(N, 0));
         vector<vector<int>> used(N, vector<int>(N, 0));
         for (int i = 0; i < N; i++) {
             for (int j = 0; j < N; j++) {
-                if (seen[i][j]) continue;
+                if (used[i][j] >> 5 & 1) continue;
                 if (field[i][j] != '0' && field[i][j] != 'x') {
                     // field[i][j] から幅優先探索で繋げるだけ繋ぐ
                     // 同じつなげ方を2回以上しないように気を付ける
                     queue<int> que;
-                    que.push(i * N + j);
-                    seen[i][j] = 1;
+                    que.push((i << 6) | j);
+                    used[i][j] |= 1 << 5;
                     while (!que.empty()) {
                         int cur = que.front();
                         que.pop();
-                        int cx = cur / N, cy = cur % N;
+                        int cx = cur >> 6, cy = cur & 63;
                         for (int dir = 0; dir < 4; dir++) {
                             if (used[cx][cy] >> dir & 1) continue;
                             if (can_connect(cx, cy, dir)) {
@@ -511,9 +510,9 @@ struct Solver {
                                 // (dir+2)%4
                                 // (x2,y2)からみて(dir+2)%4方向はつながったことになるのでもう見ない
                                 used[x2][y2] |= (1 << ((dir + 2) & 3));
-                                if (seen[x2][y2] == 0) {
-                                    seen[x2][y2] = 1;
-                                    que.push(x2 * N + y2);
+                                if ((used[x2][y2] >> 5 & 1) == 0) {
+                                    used[x2][y2] |= 1 << 5;
+                                    que.push((x2 << 6) | y2);
                                 }
                             }
                         }
