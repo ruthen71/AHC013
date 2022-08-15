@@ -462,6 +462,21 @@ struct Solver {
         return false;
     }
 
+    int can_connect_pair(int row, int col, int dir) const {
+        int nrow = row + DR[dir];
+        int ncol = col + DC[dir];
+        while (0 <= nrow && nrow < N && 0 <= ncol && ncol < N) {
+            if (field[nrow][ncol] == field[row][col]) {
+                return (nrow << 6) | ncol;
+            } else if (field[nrow][ncol] != '0') {
+                return -1;
+            }
+            nrow += DR[dir];
+            ncol += DC[dir];
+        }
+        return -1;
+    }
+
     ConnectAction line_fill(int row, int col, int dir) {
         int nrow = row + DR[dir];
         int ncol = col + DC[dir];
@@ -546,6 +561,8 @@ struct Solver {
         vector<ConnectAction> ret;
         vector<vector<int>> used(N, vector<int>(N, 0));
 
+        atcoder::dsu uf(K * 100);
+
         for (auto &ind : ind_vec) {
             for (auto &kind : kind_vec) {
                 int i = servloc[kind][ind] >> 6;
@@ -563,8 +580,11 @@ struct Solver {
                     int cx = cur >> 6, cy = cur & 63;
                     for (int dir = 0; dir < 4; dir++) {
                         if (used[cx][cy] >> dir & 1) continue;
-                        if (can_connect(cx, cy, dir)) {
+                        int conn = can_connect_pair(cx, cy, dir);
+                        int nx = conn >> 6, ny = conn & 63;
+                        if (conn != -1 and (!uf.same(servid[cx][cy], servid[nx][ny]))) {
                             auto res = line_fill(cx, cy, dir);
+                            uf.merge(servid[cx][cy], servid[nx][ny]);
                             auto [x1, y1, x2, y2] = res;
                             ret.push_back(res);
                             connect_count_limit--;
