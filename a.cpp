@@ -181,6 +181,18 @@ int calc_score_fast(int N, vector<string> field, const Result &res, const int K)
     return max(score, 0);
 }
 
+int calc_score_fast2(int N, const Result &res, const int K, const vector<vector<int>> &servid) {
+    atcoder::dsu uf(100 * K);
+    for (auto r : res.connect) {
+        uf.merge(servid[r.c1_row][r.c1_col], servid[r.c2_row][r.c2_col]);
+    }
+    int score = 0;
+    rep(i, 100 * K) {
+        if (uf.leader(i) == i) score += uf.size(i) * (uf.size(i) - 1) / 2;
+    }
+    return max(score, 0);
+}
+
 void print_answer(const Result &res, const int K) {
     assert(res.move.size() + res.connect.size() <= 100 * K);
     cout << res.move.size() << '\n';
@@ -209,6 +221,8 @@ struct Solver {
     vector<vector<int>> servloc_backup;
     vector<vector<int>> servid;
     vector<vector<int>> servid_backup;
+    vector<int> kind_vec;
+    vector<int> ind_vec;
 
     Solver(int N, int K, const vector<string> &field, int seed = 0) : N(N), K(K), action_count_limit(K * 100), field(field) {
         engine.seed(seed);
@@ -231,6 +245,10 @@ struct Solver {
         servloc_backup = servloc;
         servid_backup = servid;
         rep(k, K) assert(servcnt[k] == 100);
+        kind_vec.resize(K);
+        iota(kind_vec.begin(), kind_vec.end(), 0);
+        ind_vec.resize(100);
+        iota(ind_vec.begin(), ind_vec.end(), 0);
     }
 
     bool can_move(int row, int col, int dir) const {
@@ -528,15 +546,8 @@ struct Solver {
         vector<ConnectAction> ret;
         vector<vector<int>> used(N, vector<int>(N, 0));
 
-        V<int> kind_vec(K);
-        iota(kind_vec.begin(), kind_vec.end(), 0);
-        std::shuffle(kind_vec.begin(), kind_vec.end(), engine);
-        V<int> ind_vec(N);
-        iota(ind_vec.begin(), ind_vec.end(), 0);
-        std::shuffle(ind_vec.begin(), ind_vec.end(), engine);
-
-        for (auto kind : kind_vec) {
-            for (auto ind : ind_vec) {
+        for (auto &ind : ind_vec) {
+            for (auto &kind : kind_vec) {
                 int i = servloc[kind][ind] >> 6;
                 int j = servloc[kind][ind] & 63;
                 if (used[i][j] >> 5 & 1) continue;
@@ -652,10 +663,11 @@ struct Solver {
             auto moves = move_fast();
             auto connects = connect_bfs_fast((int)moves.size());
             max_res = Result(moves, connects);
+            max_score = calc_score_fast2(N, max_res, K, servid);
             field = field_backup;
             servloc = servloc_backup;
             servid = servid_backup;
-            max_score = calc_score_fast(N, field, max_res, K);
+            // max_score = calc_score_fast(N, field, max_res, K);
         }
         double start_temp = 0, end_temp = 0;
         int iter_count = 1;
@@ -677,6 +689,16 @@ struct Solver {
             }
 #endif
             // from each computer, connect to right and/or bottom if it will reach the same type
+
+            // swap order
+            int ind_i, ind_j;
+            if (iter_count & 1) {
+                ind_i = my.nextInt(100), ind_j = my.nextInt(100);
+                swap(ind_vec[ind_i], ind_vec[ind_j]);
+            } else {
+                ind_i = my.nextInt(K), ind_j = my.nextInt(K);
+                swap(kind_vec[ind_i], kind_vec[ind_j]);
+            }
             auto connects = connect_bfs_fast((int)moves.size());
 #if 0
             if (iter_count % 1000 == 0) {
@@ -686,11 +708,12 @@ struct Solver {
             }
 #endif
             Result res = Result(moves, connects);
+            int score = calc_score_fast2(N, res, K, servid);
             field = field_backup;
             servloc = servloc_backup;
             servid = servid_backup;
             // int score = calc_score(N, field, res);
-            int score = calc_score_fast(N, field, res, K);
+            // int score = calc_score_fast(N, field, res, K);
 #if 0
             if (iter_count % 1000 == 0) {
                 next_time = Elapsed();
@@ -709,6 +732,12 @@ struct Solver {
 #ifdef _RUTHEN
                 // print_answer(res, K);
 #endif
+            } else {
+                if (iter_count & 1) {
+                    swap(ind_vec[ind_i], ind_vec[ind_j]);
+                } else {
+                    swap(kind_vec[ind_i], kind_vec[ind_j]);
+                }
             }
         }
         cerr << "iter_count = " << iter_count << '\n';
