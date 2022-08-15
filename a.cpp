@@ -586,6 +586,19 @@ struct Solver {
         return ret;
     }
 
+    void Backup(const Result &res) {
+        field = field_backup;
+        int resSize = (int)res.move.size();
+        for (int i = resSize - 1; i >= 0; i--) {
+            auto [row, col, nrow, ncol] = res.move[i];
+            int r = servid[nrow][ncol];
+            swap(servid[row][col], servid[nrow][ncol]);
+            servloc[r / 100][r % 100] = (row << 6) | col;
+        }
+        // servloc = servloc_backup;
+        // servid = servid_backup;
+    }
+
     Result solve_random() {
         int max_score = 0;
         Result max_res;
@@ -664,9 +677,7 @@ struct Solver {
             auto connects = connect_bfs_fast((int)moves.size());
             max_res = Result(moves, connects);
             max_score = calc_score_fast2(N, max_res, K, servid);
-            field = field_backup;
-            servloc = servloc_backup;
-            servid = servid_backup;
+            Backup(max_res);
             // max_score = calc_score_fast(N, field, max_res, K);
         }
         double start_temp = 0, end_temp = 0;
@@ -675,13 +686,13 @@ struct Solver {
             iter_count++;
             double now_time = Elapsed();
             if (now_time > time_limit) break;
-#if 0
+#ifdef _RUTHEN_T
             double last_time = now_time;
             double next_time;
 #endif
             // modify move
             auto moves = modify_fast(max_res.move);
-#if 0
+#ifdef _RUTHEN_T
             if (iter_count % 1000 == 0) {
                 next_time = Elapsed();
                 show(next_time - last_time);
@@ -692,7 +703,7 @@ struct Solver {
 
             // swap order
             int ind_i, ind_j;
-            if (iter_count & 1) {
+            if ((iter_count & 31) != 0) {
                 ind_i = my.nextInt(100), ind_j = my.nextInt(100);
                 swap(ind_vec[ind_i], ind_vec[ind_j]);
             } else {
@@ -700,7 +711,7 @@ struct Solver {
                 swap(kind_vec[ind_i], kind_vec[ind_j]);
             }
             auto connects = connect_bfs_fast((int)moves.size());
-#if 0
+#ifdef _RUTHEN_T
             if (iter_count % 1000 == 0) {
                 next_time = Elapsed();
                 show(next_time - last_time);
@@ -709,12 +720,10 @@ struct Solver {
 #endif
             Result res = Result(moves, connects);
             int score = calc_score_fast2(N, res, K, servid);
-            field = field_backup;
-            servloc = servloc_backup;
-            servid = servid_backup;
+            Backup(res);
             // int score = calc_score(N, field, res);
             // int score = calc_score_fast(N, field, res, K);
-#if 0
+#ifdef _RUTHEN_T
             if (iter_count % 1000 == 0) {
                 next_time = Elapsed();
                 show(next_time - last_time);
@@ -733,7 +742,7 @@ struct Solver {
                 // print_answer(res, K);
 #endif
             } else {
-                if (iter_count & 1) {
+                if ((iter_count & 31) != 0) {
                     swap(ind_vec[ind_i], ind_vec[ind_j]);
                 } else {
                     swap(kind_vec[ind_i], kind_vec[ind_j]);
