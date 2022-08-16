@@ -23,6 +23,8 @@ double time_limit = 60;
 double time_limit = 2.8;
 #endif
 
+#define PROB_PARAM 0.777  // Lucky 7
+
 // https://atcoder.jp/contests/ahc011/submissions/32267675
 // Timer
 inline ll GetTSC() {
@@ -307,10 +309,10 @@ struct Solver {
         assert(move_limit <= 100 * K);
         int change = my.nextInt(move_limit);
         vector<MoveAction> ret;
-        double prob = my.nextDouble();  // 0.5 以上ならmove 数を減らす 0.5未満ならmove数を増やす
+        double prob = my.nextDouble();  // PROB_PARAM 以上ならmove 数を減らす PROB_PARAM未満ならmove数を増やす
         for (int i = 0; i < move_limit; i++) {
             if (i == change) {
-                if (prob > 0.5 and move_limit > 1) continue;
+                if (prob > PROB_PARAM and move_limit > 1) continue;
                 // change
                 // 高速化の余地がある
                 while (true) {
@@ -349,7 +351,7 @@ struct Solver {
                 }
             }
         }
-        if (prob <= 0.5 and (int) ret.size() < 100 * K) {
+        if (prob <= PROB_PARAM and (int) ret.size() < 100 * K) {
             while (true) {
                 int row = my.nextInt(N);
                 int col = my.nextInt(N);
@@ -370,10 +372,10 @@ struct Solver {
         assert(move_limit <= 100 * K);
         int change = my.nextInt(move_limit);
         vector<MoveAction> ret;
-        double prob = my.nextDouble();  // 0.5 以上ならmove 数を減らす 0.5未満ならmove数を増やす
+        double prob = my.nextDouble();  // PROB_PARAM 以上ならmove 数を減らす PROB_PARAM未満ならmove数を増やす
         for (int i = 0; i < move_limit; i++) {
             if (i == change) {
-                if (prob > 0.5 and move_limit > 1) continue;
+                if (prob > PROB_PARAM and move_limit > 1) continue;
                 // change
                 // 高速化の余地がある
                 while (true) {
@@ -426,7 +428,7 @@ struct Solver {
                 }
             }
         }
-        if (prob <= 0.5 and (int) ret.size() < 100 * K) {
+        if (prob <= PROB_PARAM and (int) ret.size() < 100 * K) {
             while (true) {
                 int r = my.nextInt(K * 100);
                 int kind = r / 100, ind = r % 100;
